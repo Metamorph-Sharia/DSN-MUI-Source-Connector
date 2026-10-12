@@ -19,6 +19,9 @@ uv run dsn list --filter failed,missing
 uv run dsn status                   # coverage: remote vs local, errors, runs
 ```
 
+`uv run dsn help` shows every verb and the exit codes; `uv run dsn help sync`
+shows the options for one verb.
+
 First `uv run` creates the environment automatically (`uv.lock` pins it).
 Plain Python works too: `pip install -e . && python -m dsn_ingest …`.
 
