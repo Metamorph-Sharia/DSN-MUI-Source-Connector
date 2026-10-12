@@ -238,5 +238,8 @@ run for smoke tests.
   after OJK/BI emit real records and the orchestrator defines consumption.
 - **Where `sync` cadence lives**: cron on each repo vs a thin orchestrator
   runner — unresolved, doesn't block building.
-- **OCR**: separate downstream job consuming `needs_ocr: true` blobs;
-  engine choice is the friend's problem until scanned docs actually arrive.
+- **OCR**: implemented as a downstream job, `scripts/ocr_arabic.py` (tesseract
+  `ara` over rendered pages, Arabic-dominant line filter, ~80–90% accuracy).
+  Output convention `data/dsn/ocr/<sha>.ara.txt`; the connector and its delta
+  records stay unchanged. Sibling connectors with scanned sources can reuse
+  the script or the recipe.

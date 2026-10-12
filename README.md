@@ -61,8 +61,26 @@ dsn_ingest/
   extract.py         PDF → text (PyMuPDF; flags needs_ocr)
   models.py          FatwaEntry (internal) + DocRecord (emitted pointers)
   config.py          URLs + tunables
-data/dsn/            runtime output: blobs/, text/, dsn_fatwa.db (gitignored)
+data/dsn/            runtime output: blobs/, text/, ocr/, dsn_fatwa.db (gitignored)
+scripts/
+  ocr_arabic.py      downstream Arabic OCR over archived PDFs (tesseract; not part of sync)
+  verify.sh          pre-push checks: every command vs its expected exit code
 ```
+
+## Arabic OCR (downstream job)
+
+```bash
+brew install tesseract tesseract-lang          # one-time system dep
+uv run python scripts/ocr_arabic.py --status   # how many docs are ocr'd
+uv run python scripts/ocr_arabic.py            # OCR documents missing Arabic
+```
+
+`scripts/ocr_arabic.py` renders pages at 300 dpi and keeps Arabic-dominant
+lines; output goes to `data/dsn/ocr/<sha>.ara.txt`. It is separate from
+`sync` by design — the connector's job ends at archiving PDFs + the PDF text
+layer. Accuracy is ~80–90% (harakat-heavy naskh trips tesseract), so treat
+Arabic as search/retrieval material, not certified citation. Latin text
+should come from the text layer, never this OCR.
 
 ## Facts learned from the site (Oct 2026)
 
