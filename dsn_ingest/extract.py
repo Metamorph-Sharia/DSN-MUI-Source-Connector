@@ -10,6 +10,7 @@ whose extracted text is suspiciously short is flagged `needs_ocr` upstream,
 and OCR stays a separate downstream job over the archived blobs.
 """
 from pathlib import Path
+import unicodedata
 
 from . import config
 
@@ -26,7 +27,11 @@ def pdf_to_text(pdf_path: Path) -> str | None:
             return None
     doc = pymupdf.open(str(pdf_path))
     try:
-        return "\n".join(page.get_text() for page in doc)
+        # NFKC folds Arabic presentation forms (isolated/initial/medial/final glyph
+        # shapes, e.g. U+FE8D → U+0627) back to base letters. Older DSN PDFs store
+        # their Arabic this way. Private-use glyphs are left as-is: they need the
+        # embedded font's own mapping.
+        return unicodedata.normalize("NFKC", "\n".join(page.get_text() for page in doc))
     finally:
         doc.close()
 

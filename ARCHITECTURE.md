@@ -131,7 +131,7 @@ Change detection = "sha differs from `fatwa_docs.sha256`".
 | Legacy files (≤ ~2015, ids starting `0BxT…`) require the `resourcekey` query param | `drive_download_url()` copies resourcekey from the listing href into the download URL; stripping it yields a sign-in page (`auth` error, proven live) |
 | Drive >~25 MB answers a "can't scan for viruses" form (hidden `id`+`uuid` inputs) | auto-detected and resubmitted once (`_consent_form`) |
 | dsnmui.or.id intermittently serves a JS bot-interstitial ("One moment, please…", volume-triggered, minutes-hours) | `get_html` waits 20/40/60 s; then raises `gate` — not fatal (§5) |
-| Fatwa PDFs are born-digital (typed, not scanned) | text extraction works, no OCR needed in this corpus; `needs_ocr` stays as the general flag for other connectors |
+| Latin text is in a text layer for every document, but Arabic is stored three ways: 2000–2007 PDFs use Arabic presentation forms (fixed by NFKC normalization in `extract.py`), some private-use glyphs remain (need the font's mapping), and 2008 onward has no Arabic in the text layer, only in page images | Latin text is extracted for all; Arabic for 2008+ needs OCR on the archived page images. The `needs_ocr` flag covers documents with no text layer, not this partial case |
 
 ---
 
