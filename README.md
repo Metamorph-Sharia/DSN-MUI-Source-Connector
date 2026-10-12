@@ -4,7 +4,8 @@ Fetches the fatwa corpus from [dsnmui.or.id](https://dsnmui.or.id/kategori/fatwa
 (≈166 fatwas, table listing, PDFs hosted on Google Drive) into structured raw
 data: archived bytes + extracted text + SQLite state. No LLM, no reasoning —
 retrieval only. See `CONTRACT.md` for how this plugs into the multi-source
-orchestrator (OJK / BI connectors live in their own repos, same contract).
+orchestrator (OJK / BI connectors live in their own repos, same contract),
+and `ARCHITECTURE.md` for how it's built and why.
 
 ## Quickstart
 
