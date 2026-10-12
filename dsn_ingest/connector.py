@@ -141,7 +141,7 @@ class DsnConnector:
                 stage = "extract"
                 if is_pdf:
                     text = extract.pdf_to_text(blob)
-                    if text is None:                        # pypdf unavailable
+                    if text is None:                        # extractor unavailable
                         self.store.set_text(e.source_id, None, None)
                     else:
                         needs_ocr = len(text) < extract.MIN_TEXT_LEN

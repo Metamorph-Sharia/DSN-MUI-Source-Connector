@@ -40,7 +40,7 @@ dsn_ingest/
   parser.py          listing table → FatwaEntry
   fetcher.py         requests + fallback ladder (transient/quota/auth/content/not_found)
   store.py           SQLite state + content-addressed blob store
-  extract.py         PDF → text (pypdf; flags needs_ocr)
+  extract.py         PDF → text (PyMuPDF; flags needs_ocr)
   models.py          FatwaEntry (internal) + DocRecord (emitted pointers)
   config.py          URLs + tunables
   mock_data/         fixtures captured from the real site (offline mode)
@@ -57,7 +57,8 @@ data/dsn/            runtime output: blobs/, text/, dsn_fatwa.db (gitignored;
 - Listing is one table per page: `Nomor | Tentang | Drive link`. No detail pages.
 - **Keep `resourcekey`** in Drive hrefs — legacy files (≤2015) demand it and
   answer with a sign-in page without it.
-- Fatwa PDFs are born-digital: `pypdf` text extraction is enough, no OCR.
+- Fatwa PDFs are born-digital: `pypdf`/PyMuPDF text extraction is enough, no OCR
+  (engine: PyMuPDF — noticeably cleaner on these embedded-font PDFs).
 - Pagination is `/page/N/`, 10 rows/page; `discover` stops on the first
   404/empty page, so new fatwas are picked up automatically next run.
 - 2 of 166 rows (fatwas 26/2002, 68/2008) have broken upstream links

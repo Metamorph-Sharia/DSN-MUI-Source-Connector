@@ -1,8 +1,13 @@
-"""Normalization: PDF bytes → plain text. pypdf is optional.
+"""Normalization: PDF bytes → plain text.
 
-DSN fatwas are born-digital PDFs (text layer present), so plain text
-extraction usually suffices — no OCR needed. If a scanned PDF shows up,
-extract_text() returns a very short string and the caller can flag it.
+Engine: PyMuPDF (fitz). Chosen over pypdf after side-by-side tests on real
+DSN fatwa PDFs: cleaner handling of their embedded-font encodings (pypdf
+produced artifacts like "knlian"/"MAJELIS T]LAMA INI}OFIESIA"; fitz reads
+them correctly) and better Arabic-script extraction.
+
+Fatwas are born-digital (text layer present) → no OCR needed. A document
+whose extracted text is suspiciously short is flagged `needs_ocr` upstream,
+and OCR stays a separate downstream job over the archived blobs.
 """
 from pathlib import Path
 
@@ -13,11 +18,17 @@ MIN_TEXT_LEN = 200  # below this, the PDF is probably a scan → needs OCR later
 
 def pdf_to_text(pdf_path: Path) -> str | None:
     try:
-        from pypdf import PdfReader
+        import pymupdf                      # current PyMuPDF ≥1.24 API name
     except ImportError:
-        return None
-    reader = PdfReader(str(pdf_path))
-    return "\n".join((page.extract_text() or "") for page in reader.pages)
+        try:
+            import fitz as pymupdf          # older installs
+        except ImportError:
+            return None
+    doc = pymupdf.open(str(pdf_path))
+    try:
+        return "\n".join(page.get_text() for page in doc)
+    finally:
+        doc.close()
 
 
 def write_text(sha: str, text: str) -> Path:
