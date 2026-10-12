@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+# Runs the offline command checks before every push (see scripts/verify.sh).
+exec "$(git rev-parse --show-toplevel)/scripts/verify.sh"

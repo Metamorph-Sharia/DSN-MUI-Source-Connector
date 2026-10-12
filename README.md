@@ -37,6 +37,15 @@ byte-level change detection; default skips what we already hold) ·
 `list` (full local snapshot) · `status` (alignment + monitoring).
 Exit codes: 0 ok · 1 partial · 2 run-level failure.
 
+## Before pushing
+
+`scripts/verify.sh` runs every CLI command against its expected exit code.
+It is offline by default, so it never touches the site. `scripts/verify.sh --live`
+adds the commands that do: `check` and a one-document sync.
+
+The repo's `.githooks/pre-push` runs the offline suite on every push. It is
+enabled with `git config core.hooksPath .githooks`; run that once per clone.
+
 ## Layout
 
 ```
