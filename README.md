@@ -92,7 +92,7 @@ should come from the text layer, never this OCR.
 - Listing is one table per page: `Nomor | Tentang | Drive link`. No detail pages.
 - **Keep `resourcekey`** in Drive hrefs — legacy files (≤2015) demand it and
   answer with a sign-in page without it.
-- Latin text is in the PDF text layer for every fatwa. Arabic is not, for most of the corpus: 2000–2007 fatwas store it as presentation forms (recovered by NFKC) and 2008+ fatwas have it only inside page images, so it needs OCR.
+- Latin text is in the PDF text layer for every fatwa. Arabic script is deliberately stripped from `text/` (it was half-damaged by PUA glyphs anyway); every document's Arabic comes from `ocr/<sha>.ara.txt` instead, page-aligned with the text files.
 - Fatwa PDFs are not all born-digital. Modern ones are scanned pages with a Latin text layer.
 - Pagination is `/page/N/`, 10 rows/page; `discover` stops on the first
   404/empty page, so new fatwas are picked up automatically next run.

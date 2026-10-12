@@ -42,8 +42,6 @@ from dsn_ingest.store import Store  # noqa: E402
 
 OCR_DIR = config.DATA_DIR / "ocr"
 AR_LINE = re.compile(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]")
-BASE_RE = re.compile(r"[\u0621-\u064A]")
-PUA_RE = re.compile(r"[\uE000-\uF8FF]")
 
 
 def keep_line(line: str) -> bool:
@@ -91,22 +89,20 @@ def ocr_document(source_id: str, dpi: int) -> str:
 
 
 def needs_ocr(store: Store) -> list[str]:
-    """Documents whose text layer lacks Arabic or is glyph-damaged."""
+    """Every held document without OCR output.
+
+    text/ is Latin-only by design (extract.py strips Arabic script), so
+    ocr/ is the corpus's only Arabic source — every document eventually
+    gets one. Pure-Latin documents end up with a small/empty .ara.txt,
+    which marks them as processed and keeps the invariant simple.
+    """
     todo = []
     rows = store.db.execute(
-        "SELECT source_id, text_path FROM fatwa_docs "
+        "SELECT source_id, sha256 FROM fatwa_docs "
         "WHERE raw_path IS NOT NULL AND last_result IN ('new','changed','unchanged')").fetchall()
     for r in rows:
-        sid = r["source_id"]
-        sha = store.db.execute(
-            "SELECT sha256 FROM fatwa_docs WHERE source_id = ?", (sid,)).fetchone()["sha256"]
-        if (OCR_DIR / f"{sha}.ara.txt").exists():
-            continue
-        text = ""
-        if r["text_path"] and Path(r["text_path"]).exists():
-            text = Path(r["text_path"]).read_text(encoding="utf-8", errors="replace")
-        if len(BASE_RE.findall(text)) < 100 or len(PUA_RE.findall(text)) > 300:
-            todo.append(sid)
+        if not (OCR_DIR / f"{r['sha256']}.ara.txt").exists():
+            todo.append(r["source_id"])
     return todo
 
 

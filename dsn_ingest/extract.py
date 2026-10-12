@@ -1,17 +1,19 @@
-"""Normalization: PDF bytes → plain text.
+"""Normalization: PDF bytes → clean Latin text.
 
-Engine: PyMuPDF (fitz). Chosen over pypdf after side-by-side tests on real
-DSN fatwa PDFs: cleaner handling of their embedded-font encodings and better
-Arabic-script extraction.
+Engine: PyMuPDF. The text layer of these PDFs mixes Indonesian (Latin)
+with Arabic-script quotations, PUA glyph junk and BiDi controls. We keep
+only the Latin reading matter:
 
-Cleaning applied per page (see ARCHITECTURE.md §4):
-  * NFKC normalization — folds Arabic presentation forms (U+FE8D …) back to
-    base letters (2000–2007 PDFs store Arabic as glyph shapes)
-  * private-use-area + BiDi-control removal — undecipherable font artifacts;
-    the Arabic they hid is recovered downstream by scripts/ocr_arabic.py
+  * NFKC normalization first, so presentation forms become base letters
+    (and then get caught by the strip below rather than hiding in a form
+    the strip would miss)
+  * strip: all Arabic ranges, private-use area, zero-width/BiDi controls
+  * tidy: collapsed runs of spaces, no triple blank lines
 
-Output format: `=== page N ===` markers, matching data/dsn/ocr/<sha>.ara.txt,
-so a consumer can build a per-page view joining text layer + OCR'd Arabic.
+Arabic content is NOT lost — it lives in data/dsn/ocr/<sha>.ara.txt,
+produced by scripts/ocr_arabic.py over the same archived PDF (one quality
+tier, ~85%, instead of a worse copy baked into the text layer).
+
 The needs_ocr decision is computed from page CONTENT only, never markers.
 """
 import re
@@ -23,18 +25,21 @@ from . import config
 MIN_TEXT_LEN = 200  # below this, the PDF is probably a scan → needs OCR later
 PAGE_MARKER = "=== page {} ==="
 
-# PUA (BMP) + zero-width/bidi controls that pollute extracted text
-_GARBAGE_RE = re.compile(
-    r"[\uE000-\uF8FF\u200B-\u200F\u202A-\u202E\u2060\uFEFF]"
+# Arabic scripts + presentation forms + harakat, PUA, zero-width/BiDi controls
+_NONLATIN_RE = re.compile(
+    r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF"
+    r"\uE000-\uF8FF\u200B-\u200F\u202A-\u202E\u2060\uFEFF]"
 )
 
 
 def _clean(raw: str) -> str:
-    return _GARBAGE_RE.sub("", unicodedata.normalize("NFKC", raw))
+    t = _NONLATIN_RE.sub("", unicodedata.normalize("NFKC", raw))
+    t = re.sub(r"[ \t]{2,}", " ", t)
+    return re.sub(r"\n{3,}", "\n\n", t).strip()
 
 
 def pdf_to_pages(pdf_path: Path) -> list[str] | None:
-    """Per-page cleaned text, or None if no extractor is available."""
+    """Per-page cleaned (Latin-only) text, or None if no extractor is available."""
     try:
         import pymupdf                      # current PyMuPDF ≥1.24 API name
     except ImportError:
