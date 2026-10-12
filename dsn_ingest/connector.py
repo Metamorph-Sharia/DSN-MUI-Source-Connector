@@ -71,7 +71,7 @@ class DsnConnector:
 
     def sync(self, max_pages: int = config.DEFAULT_MAX_PAGES,
              limit: int | None = None, all_files: bool = False,
-             refresh_index: bool = False, progress=None
+             refresh_index: bool = False, progress=None, on_delta=None
              ) -> tuple[dict, list[DocRecord]]:
         run_id = self.store.start_run("sync")
         counts = {"discovered": 0, "new": 0, "changed": 0, "unchanged": 0,
@@ -110,20 +110,26 @@ class DsnConnector:
                 continue
             todo.append(e)
         pending = len(todo)
-        if limit:
+        if limit is not None:
             todo = todo[:limit]
 
         if progress:
             progress("start", {"index_source": index_source, "discovered": len(entries),
                                "todo": pending})
-        for i, e in enumerate(todo, 1):
-            rec = self._acquire(run_id, e)
-            counts[rec.status] += 1
-            if progress:
-                progress("doc", {"i": i, "n": len(todo), "rec": rec})
-            if rec.status == "unchanged":
-                continue
-            delta.append(rec)               # new | changed | failed only
+        try:
+            for i, e in enumerate(todo, 1):
+                rec = self._acquire(run_id, e)
+                counts[rec.status] += 1
+                if progress:
+                    progress("doc", {"i": i, "n": len(todo), "rec": rec})
+                if rec.status == "unchanged":
+                    continue
+                delta.append(rec)           # new | changed | failed only
+                if on_delta:
+                    on_delta(rec)           # streamed: state and output stay in step
+        except BaseException:
+            self.store.finish_run(run_id, "crashed", counts)
+            raise
 
         status = "ok" if counts["failed"] == 0 and index_source != "stored-index" else "partial"
         self.store.finish_run(run_id, status, counts)

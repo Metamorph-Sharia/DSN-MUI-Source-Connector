@@ -29,7 +29,7 @@ def build(store: Store) -> DsnConnector:
 def _emit_jsonl(records, out_path: str | None) -> None:
     for r in records:
         line = json.dumps(r.to_dict() if hasattr(r, "to_dict") else r, ensure_ascii=False)
-        print(line)
+        print(line, flush=True)
         if out_path:
             with open(out_path, "a", encoding="utf-8") as f:
                 f.write(line + "\n")
@@ -101,8 +101,8 @@ def main(argv=None) -> int:
             verbose = args.progress or (not args.quiet and sys.stderr.isatty())
             report, delta = conn.sync(max_pages=args.max_pages, limit=args.limit,
                                       all_files=args.all, refresh_index=args.refresh_index,
-                                      progress=_progress_printer(verbose))
-            _emit_jsonl(delta, args.out)
+                                      progress=_progress_printer(verbose),
+                                      on_delta=lambda rec: _emit_jsonl([rec], args.out))
             c = report["counts"]
             if verbose:
                 print(f"done: {c['new']} new, {c['changed']} changed, {c['failed']} failed, "
