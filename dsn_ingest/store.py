@@ -7,6 +7,7 @@ if ever needed, read any connector's DB the same way.
 """
 import json
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 from . import config
@@ -92,6 +93,14 @@ class Store:
         rows = self.db.execute("SELECT * FROM fatwa_index ORDER BY year, number").fetchall()
         return [FatwaEntry(r["source_id"], r["number"], r["title"], r["pdf_href"],
                            r["year"], r["month"]) for r in rows]
+
+    def index_is_fresh(self, max_age_s: int) -> bool:
+        """True if the listing was crawled within max_age_s (last_seen = crawl time)."""
+        row = self.db.execute("SELECT MAX(last_seen) m FROM fatwa_index").fetchone()
+        if row is None or not row["m"]:
+            return False
+        age = datetime.now(timezone.utc) - datetime.fromisoformat(row["m"])
+        return age.total_seconds() < max_age_s
 
     # ---------- acquisition / change detection ----------
 

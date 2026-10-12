@@ -174,6 +174,12 @@ site was gated: 2 legacy fatwas acquired without touching dsnmui.or.id.
 
 ## 6. Sync selection logic (incremental by default)
 
+Discovery is cached: `sync` re-crawls the listing only when the stored index is
+older than 24 h (`INDEX_MAX_AGE_S`) or when `--refresh-index` is passed. Otherwise
+it works from the stored index and makes no listing requests. This keeps routine
+runs from tripping the site's bot gate.
+
+
 ```
 for each indexed entry:
     have  = doc exists AND last_result ∈ {new, changed, unchanged}

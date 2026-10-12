@@ -110,6 +110,11 @@ the JSONL delta + `status` output is the only thing the orchestrator needs.
 
 ## Run-report (stderr on `sync`)
 
+`index_source` says where the document list came from: `live` (listing
+crawled now), `stored-index-fresh` (crawled under 24 h ago, no listing
+requests made), or `stored-index` (listing gated or unreachable; the run is
+`partial`).
+
 ```json
 {"connector": "dsn_mui", "run_id": 3, "status": "partial",
  "counts": {"discovered": 166, "new": 12, "changed": 1, "unchanged": 0,

@@ -70,27 +70,32 @@ class DsnConnector:
     # ---------- sync (modules 2-4 + delta emit) ----------
 
     def sync(self, max_pages: int = config.DEFAULT_MAX_PAGES,
-             limit: int | None = None, all_files: bool = False
+             limit: int | None = None, all_files: bool = False,
+             refresh_index: bool = False
              ) -> tuple[dict, list[DocRecord]]:
         run_id = self.store.start_run("sync")
         counts = {"discovered": 0, "new": 0, "changed": 0, "unchanged": 0,
                   "failed": 0, "skipped_already_have": 0}
         delta: list[DocRecord] = []
 
-        index_source = "live"
-        try:
-            entries = self.discover(max_pages)
-        except FetchError as ex:
-            # degraded mode: listing is gated/unreachable — the Drive downloads
-            # don't depend on it, so keep working the corpus we already indexed.
-            self.store.log_error(run_id, None, "discover", ex.kind, str(ex))
-            entries = self.store.index_entries()
-            index_source = "stored-index"
-            if not entries:
-                counts["failed"] += 1
-                self.store.finish_run(run_id, "failed", counts)
-                return {"connector": self.name, "run_id": run_id, "status": "failed",
-                        "error": f"{ex.kind}: {ex}", "counts": counts}, delta
+        if refresh_index or not self.store.index_is_fresh(config.INDEX_MAX_AGE_S):
+            index_source = "live"
+            try:
+                entries = self.discover(max_pages)
+            except FetchError as ex:
+                # degraded mode: listing is gated/unreachable — the Drive downloads
+                # don't depend on it, so keep working the corpus we already indexed.
+                self.store.log_error(run_id, None, "discover", ex.kind, str(ex))
+                entries = self.store.index_entries()
+                index_source = "stored-index"
+                if not entries:
+                    counts["failed"] += 1
+                    self.store.finish_run(run_id, "failed", counts)
+                    return {"connector": self.name, "run_id": run_id, "status": "failed",
+                            "error": f"{ex.kind}: {ex}", "counts": counts}, delta
+        else:
+            entries = self.store.index_entries()           # fresh: no listing requests
+            index_source = "stored-index-fresh"
         counts["discovered"] = len(entries)
 
         todo: list[FatwaEntry] = []
@@ -114,7 +119,7 @@ class DsnConnector:
                 continue
             delta.append(rec)               # new | changed | failed only
 
-        status = "ok" if counts["failed"] == 0 and index_source == "live" else "partial"
+        status = "ok" if counts["failed"] == 0 and index_source != "stored-index" else "partial"
         self.store.finish_run(run_id, status, counts)
         return {"connector": self.name, "run_id": run_id, "status": status,
                 "index_source": index_source, "counts": counts}, delta

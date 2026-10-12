@@ -45,6 +45,8 @@ def main(argv=None) -> int:
     s.add_argument("--max-pages", type=int, default=config.DEFAULT_MAX_PAGES)
     s.add_argument("--limit", type=int, help="acquire at most N pending docs (smoke-test a run)")
     s.add_argument("--all", action="store_true", help="re-download everything (byte-level change detection)")
+    s.add_argument("--refresh-index", action="store_true",
+                   help="re-crawl the listing even if the stored index is fresh")
     s.add_argument("--out", help="append delta JSONL to this file too")
     l = sub.add_parser("list")
     l.add_argument("--filter", help="comma-separated statuses: new,changed,unchanged,failed,missing")
@@ -71,7 +73,8 @@ def main(argv=None) -> int:
             return 0
 
         if args.cmd == "sync":
-            report, delta = conn.sync(max_pages=args.max_pages, limit=args.limit, all_files=args.all)
+            report, delta = conn.sync(max_pages=args.max_pages, limit=args.limit,
+                                      all_files=args.all, refresh_index=args.refresh_index)
             _emit_jsonl(delta, args.out)
             print(json.dumps(report), file=sys.stderr)
             return {"ok": 0, "partial": 1, "failed": 2}[report["status"]]

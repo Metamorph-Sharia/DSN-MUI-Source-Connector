@@ -26,6 +26,9 @@ No offline/mock mode: all verification runs against the live site — be
 moderate (1s politeness delay between downloads; `--limit` for smoke tests).
 `status` and `list` are fully local, they never touch the network.
 
+`sync` reuses the stored listing for 24 h, so routine runs make no listing
+requests. Pass `--refresh-index` to re-crawl the listing on demand.
+
 Verbs: `check` · `discover` · `sync` (`--all` = re-download everything for
 byte-level change detection; default skips what we already hold) ·
 `list` (full local snapshot) · `status` (alignment + monitoring).

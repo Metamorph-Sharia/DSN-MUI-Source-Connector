@@ -37,3 +37,7 @@ GATE_WAIT_S = 20
 INTERSTITIAL_TITLES = {"one moment, please...", "mohon tunggu sebentar…"}
 
 DEFAULT_MAX_PAGES = 30        # corpus was 17 pages (166 fatwas) Oct 2026
+
+# the listing changes a few times a year; re-crawling it on every sync is what
+# trips the gate. sync reuses the stored index while it is younger than this.
+INDEX_MAX_AGE_S = 24 * 3600
