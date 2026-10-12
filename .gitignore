@@ -1,0 +1,13 @@
+# connector state & corpus — never commit downloaded data or DBs
+data/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+dist/
+*.egg-info/
+
+# misc
+.DS_Store
+.obsidian/
