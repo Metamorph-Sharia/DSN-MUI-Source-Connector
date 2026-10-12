@@ -164,26 +164,3 @@ class Fetcher:
 
     def close(self) -> None:
         self.s.close()
-
-
-class MockFetcher:
-    """Offline fixtures: pages keyed by URL, files keyed by Drive file id."""
-
-    def __init__(self, pages: dict[str, str], pdfs: dict[str, bytes]):
-        self.pages = pages
-        self.pdfs = pdfs
-
-    def get_html(self, url: str) -> str:
-        if url in self.pages:
-            return self.pages[url]
-        raise FetchError(f"no mock page for {url}", "not_found")
-
-    def get_file(self, href: str) -> tuple[bytes, str]:
-        m = re.search(r"/file/d/([A-Za-z0-9_-]+)", href)
-        fid = m.group(1) if m else parse_qs(urlsplit(href).query).get("id", [""])[0]
-        if fid not in self.pdfs:
-            raise FetchError(f"no mock file for id {fid}", "not_found")
-        return self.pdfs[fid], "application/pdf"
-
-    def close(self) -> None:
-        pass

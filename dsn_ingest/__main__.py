@@ -6,8 +6,6 @@
   python -m dsn_ingest list [--filter missing,failed]
   python -m dsn_ingest status
 
-  --mode mock  runs the whole thing on bundled fixtures (no network).
-
 Output conventions:
   check / status        one JSON doc on stdout
   discover / sync / list  JSONL (one record per line); sync also appends
@@ -21,19 +19,10 @@ import sys
 from . import config
 from .connector import DsnConnector
 from .store import Store
+from .fetcher import Fetcher
 
 
-def build(mode: str, store: Store) -> DsnConnector:
-    if mode == "mock":
-        from .fetcher import MockFetcher
-        pages = {
-            config.page_url(1): (config.MOCK_DIR / "fatwa_list_page1.html").read_text(encoding="utf-8"),
-            config.page_url(2): (config.MOCK_DIR / "fatwa_list_page2.html").read_text(encoding="utf-8"),
-        }
-        pdfs = {p.stem: p.read_bytes()
-                for p in (config.MOCK_DIR / "pdfs").glob("*.pdf")}
-        return DsnConnector(MockFetcher(pages, pdfs), store)
-    from .fetcher import Fetcher
+def build(store: Store) -> DsnConnector:
     return DsnConnector(Fetcher(), store)
 
 
@@ -47,8 +36,7 @@ def _emit_jsonl(records, out_path: str | None) -> None:
 
 
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(prog="dsn_ingest")
-    p.add_argument("--mode", choices=["mock", "live"], default="live")
+    p = argparse.ArgumentParser(prog="dsn")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("check")
@@ -63,20 +51,15 @@ def main(argv=None) -> int:
     sub.add_parser("status")
 
     args = p.parse_args(argv)
-
-    # keep mock runs fully isolated from the real corpus state
-    data_dir = config.DATA_DIR / "mock" if args.mode == "mock" else config.DATA_DIR
-    config.TEXT_DIR = data_dir / "text"
-    store = Store(data_dir / "dsn_fatwa.db", data_dir / "blobs")
+    store = Store()
 
     if args.cmd == "status":
-        conn = build(args.mode, store)
-        doc = {"connector": conn.name, "mode": args.mode, **store.coverage(),
+        doc = {"connector": DsnConnector.name, **store.coverage(),
                "runs": store.recent_runs(5), "recent_errors": store.recent_errors(10)}
         print(json.dumps(doc, indent=2, ensure_ascii=False))
         return 0 if doc["aligned"] else 1
 
-    conn = build(args.mode, store)
+    conn = build(store)
     try:
         if args.cmd == "check":
             rep = conn.check()

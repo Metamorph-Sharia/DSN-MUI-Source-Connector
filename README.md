@@ -11,8 +11,6 @@ orchestrator (OJK / BI connectors live in their own repos, same contract).
 Everything runs through [uv](https://docs.astral.sh/uv/) — clone and go:
 
 ```bash
-uv run dsn --mode mock check        # offline smoke test (bundled fixtures)
-uv run dsn --mode mock sync         # offline end-to-end run
 uv run dsn check                    # live: reachability + parse sanity
 uv run dsn sync --limit 3           # live: first 3 docs (smoke test)
 uv run dsn sync                     # live: full corpus, incremental
@@ -22,6 +20,10 @@ uv run dsn status                   # coverage: remote vs local, errors, runs
 
 First `uv run` creates the environment automatically (`uv.lock` pins it).
 Plain Python works too: `pip install -e . && python -m dsn_ingest …`.
+
+No offline/mock mode: all verification runs against the live site — be
+moderate (1s politeness delay between downloads; `--limit` for smoke tests).
+`status` and `list` are fully local, they never touch the network.
 
 Verbs: `check` · `discover` · `sync` (`--all` = re-download everything for
 byte-level change detection; default skips what we already hold) ·
@@ -43,9 +45,7 @@ dsn_ingest/
   extract.py         PDF → text (PyMuPDF; flags needs_ocr)
   models.py          FatwaEntry (internal) + DocRecord (emitted pointers)
   config.py          URLs + tunables
-  mock_data/         fixtures captured from the real site (offline mode)
-data/dsn/            runtime output: blobs/, text/, dsn_fatwa.db (gitignored;
-                     mock runs isolated under data/dsn/mock)
+data/dsn/            runtime output: blobs/, text/, dsn_fatwa.db (gitignored)
 ```
 
 ## Facts learned from the site (Oct 2026)

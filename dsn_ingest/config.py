@@ -6,7 +6,6 @@ DATA_DIR = PROJECT_ROOT / "data" / "dsn"
 BLOB_DIR = DATA_DIR / "blobs"
 TEXT_DIR = DATA_DIR / "text"
 DB_PATH = DATA_DIR / "dsn_fatwa.db"
-MOCK_DIR = Path(__file__).resolve().parent / "mock_data"
 
 BASE_URL = "https://dsnmui.or.id"
 FATWA_LIST_URL = f"{BASE_URL}/kategori/fatwa/"
