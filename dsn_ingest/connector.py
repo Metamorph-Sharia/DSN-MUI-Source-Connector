@@ -157,16 +157,14 @@ class DsnConnector:
             else:
                 stage = "extract"
                 if is_pdf:
-                    text = extract.pdf_to_text(blob)
-                    if text is None:                        # extractor unavailable
+                    pages = extract.pdf_to_pages(blob)
+                    if pages is None:                       # extractor unavailable
                         self.store.set_text(e.source_id, None, None)
+                    elif len(extract.page_text(pages)) < extract.MIN_TEXT_LEN:
+                        self.store.set_text(e.source_id, None, True)   # scanned-ish
                     else:
-                        needs_ocr = len(text) < extract.MIN_TEXT_LEN
-                        if needs_ocr:                       # scanned-ish → OCR later
-                            self.store.set_text(e.source_id, None, True)
-                        else:
-                            text_path = str(extract.write_text(sha, text))
-                            self.store.set_text(e.source_id, text_path, False)
+                        text_path = str(extract.write_text(sha, pages))
+                        self.store.set_text(e.source_id, text_path, False)
                 else:
                     self.store.set_text(e.source_id, None, None)
             return DocRecord(connector=self.name, source_id=e.source_id, title=e.title,

@@ -64,6 +64,7 @@ dsn_ingest/
 data/dsn/            runtime output: blobs/, text/, ocr/, dsn_fatwa.db (gitignored)
 scripts/
   ocr_arabic.py      downstream Arabic OCR over archived PDFs (tesseract; not part of sync)
+  reextract.py       rebuild text/ from archived PDFs after extraction/cleaning changes
   verify.sh          pre-push checks: every command vs its expected exit code
 ```
 
