@@ -35,6 +35,26 @@ def _emit_jsonl(records, out_path: str | None) -> None:
                 f.write(line + "\n")
 
 
+def _progress_printer(verbose: bool):
+    """Per-document progress on stderr. Failures print in every mode; successes
+    only when verbose (stderr is a terminal, or --progress)."""
+    def emit(event: str, info: dict) -> None:
+        if event == "start":
+            if verbose:
+                print(f"index: {info['index_source']} · {info['discovered']} listed · "
+                      f"{info['todo']} to acquire", file=sys.stderr)
+            return
+        rec, i, n = info["rec"], info["i"], info["n"]
+        if rec.status == "failed":
+            print(f"[{i}/{n}] FAIL {rec.source_id}  {rec.error}: "
+                  f"{(rec.error_message or '')[:120]}", file=sys.stderr)
+        elif verbose:
+            size = f"{rec.size_bytes / 1e6:.1f} MB" if rec.size_bytes else "-"
+            ocr = "  needs_ocr" if rec.needs_ocr else ""
+            print(f"[{i}/{n}] {rec.status:<9} {rec.source_id}  {size}{ocr}", file=sys.stderr)
+    return emit
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="dsn")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -47,6 +67,11 @@ def main(argv=None) -> int:
     s.add_argument("--all", action="store_true", help="re-download everything (byte-level change detection)")
     s.add_argument("--refresh-index", action="store_true",
                    help="re-crawl the listing even if the stored index is fresh")
+    verbosity = s.add_mutually_exclusive_group()
+    verbosity.add_argument("--progress", action="store_true",
+                           help="per-document progress on stderr (default on a terminal)")
+    verbosity.add_argument("--quiet", action="store_true",
+                           help="only failures and the run report on stderr (default when piped)")
     s.add_argument("--out", help="append delta JSONL to this file too")
     l = sub.add_parser("list")
     l.add_argument("--filter", help="comma-separated statuses: new,changed,unchanged,failed,missing")
@@ -73,9 +98,15 @@ def main(argv=None) -> int:
             return 0
 
         if args.cmd == "sync":
+            verbose = args.progress or (not args.quiet and sys.stderr.isatty())
             report, delta = conn.sync(max_pages=args.max_pages, limit=args.limit,
-                                      all_files=args.all, refresh_index=args.refresh_index)
+                                      all_files=args.all, refresh_index=args.refresh_index,
+                                      progress=_progress_printer(verbose))
             _emit_jsonl(delta, args.out)
+            c = report["counts"]
+            if verbose:
+                print(f"done: {c['new']} new, {c['changed']} changed, {c['failed']} failed, "
+                      f"{c['skipped_already_have']} already held", file=sys.stderr)
             print(json.dumps(report), file=sys.stderr)
             return {"ok": 0, "partial": 1, "failed": 2}[report["status"]]
 

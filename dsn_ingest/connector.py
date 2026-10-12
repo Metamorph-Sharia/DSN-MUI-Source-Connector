@@ -71,7 +71,7 @@ class DsnConnector:
 
     def sync(self, max_pages: int = config.DEFAULT_MAX_PAGES,
              limit: int | None = None, all_files: bool = False,
-             refresh_index: bool = False
+             refresh_index: bool = False, progress=None
              ) -> tuple[dict, list[DocRecord]]:
         run_id = self.store.start_run("sync")
         counts = {"discovered": 0, "new": 0, "changed": 0, "unchanged": 0,
@@ -109,12 +109,18 @@ class DsnConnector:
                 counts["skipped_already_have"] += 1
                 continue
             todo.append(e)
+        pending = len(todo)
         if limit:
             todo = todo[:limit]
 
-        for e in todo:
+        if progress:
+            progress("start", {"index_source": index_source, "discovered": len(entries),
+                               "todo": pending})
+        for i, e in enumerate(todo, 1):
             rec = self._acquire(run_id, e)
             counts[rec.status] += 1
+            if progress:
+                progress("doc", {"i": i, "n": len(todo), "rec": rec})
             if rec.status == "unchanged":
                 continue
             delta.append(rec)               # new | changed | failed only

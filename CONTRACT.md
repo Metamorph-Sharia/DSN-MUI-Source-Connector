@@ -110,6 +110,11 @@ the JSONL delta + `status` output is the only thing the orchestrator needs.
 
 ## Run-report (stderr on `sync`)
 
+On a terminal, `sync` prints one line per document as it finishes, plus a summary.
+Failures print in every mode, so automated logs still show what broke. Use
+`--progress` to force the full output and `--quiet` to suppress successes
+(e.g. in cron). Stdout carries only the delta JSONL.
+
 `index_source` says where the document list came from: `live` (listing
 crawled now), `stored-index-fresh` (crawled under 24 h ago, no listing
 requests made), or `stored-index` (listing gated or unreachable; the run is
