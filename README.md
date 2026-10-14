@@ -46,15 +46,30 @@ adds the commands that do: `check` and a one-document sync.
 The repo's `.githooks/pre-push` runs the offline suite on every push. It is
 enabled with `git config core.hooksPath .githooks`; run that once per clone.
 
+## Products (three sources, kept separate)
+
+| Connector | Publishes | Listing | Cursor |
+|---|---|---|---|
+| `dsn-fatwa` | rulings (fatwa) | 17 pages | year + fatwa number |
+| `dsn-pedoman` | implementation guidelines | 1 page | year + number |
+| `dsn-talimat` | circular letters: later changes (surat edaran) | 1 page | year + `U-` number |
+
+Why separate: fatwa is the ruling, pedoman says how to apply it, ta'limat
+records later changes. Each has its own numbering, cursor and id prefix
+(`pedoman-…`, `talimat-…`), so they never collide and the orchestrator can
+schedule them independently. Known wrinkle: one ta'limat entry links to a
+Drive *folder* instead of a file and is reported as a non-retryable item.
+
 ## Orchestrator interface (v1.0)
 
 `dsn_ingest/adapter.py` implements the team's `SourceConnector` class
 interface (`CONNECTOR_INTERFACE.md` / unmodified root `source_connector.py`):
 
 ```python
-from dsn_ingest.adapter import DsnMuiConnector
+from dsn_ingest.adapter import DsnFatwaConnector, DsnPedomanConnector, DsnTalimatConnector
 
-connector = DsnMuiConnector({})              # optional: max_pages, delay_s, page_delay_s
+connector = DsnFatwaConnector({})            # or DsnPedomanConnector / DsnTalimatConnector
+                                             # optional: max_pages, delay_s, page_delay_s
 discovery = connector.discover(saved_cursor) # Discovery(items, cursor)
 fetched = connector.fetch(item, file_store)  # saves original bytes via store.put()
 ```

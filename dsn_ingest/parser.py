@@ -1,50 +1,52 @@
 """HTML → structured rows. BeautifulSoup only; no network.
 
-The fatwa listing (as of Oct 2026) is one table per page, columns:
-  Nomor Fatwa | Tentang | <a drive link>Salinan Fatwa (PDF)</a>
-Header row / other tables are skipped implicitly: a row counts if the first
-cell matches the fatwa-number pattern. Broken hrefs are kept and flagged at
-sync time ("content"), so coverage reports them instead of dropping fatwas.
+All three DSN listings share one table layout: [optional "No."] | number |
+title | link. The number cell is found by pattern, not by position, so the
+extra "No." column in pedoman/ta'limat doesn't matter. Ta'limat numbers carry
+a "U-" prefix (U-0161/DSN-MUI/II/2026).
 """
 import re
 
 from bs4 import BeautifulSoup
 
 from .models import FatwaEntry
+from .products import PRODUCTS
 
-# "96/DSN-MUI/VI/2015", "162/DSN-MUI/VII/2025", "1/DSN-MUI/IV/2000"
-NUMBER_RE = re.compile(r"(\d+[A-Z]?)\s*/\s*DSN[-\s]MUI\s*/\s*([IVX]+)\s*/\s*(\d{4})", re.I)
+NUMBER_RE = re.compile(
+    r"((?:U-)?\d+[A-Z]?)\s*/\s*DSN[-\s]MUI\s*/\s*([IVX]+)\s*/\s*(\d{4})", re.I)
 
 
 def source_id_for(number: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "-", number).strip("-").upper()
 
 
-def parse_listing(html: str) -> list[FatwaEntry]:
+def parse_listing(html: str, product=None) -> list[FatwaEntry]:
+    product = product or PRODUCTS["fatwa"]
     soup = BeautifulSoup(html, "html.parser")
     out, seen = [], set()
     for tr in soup.select("table tr"):
-        tds = tr.select("td")
-        if len(tds) < 3:
+        cells = tr.select("td")
+        if len(cells) < 3:
             continue
-        m = NUMBER_RE.search(tds[0].get_text(" ", strip=True))
-        if m is None:
+        idx = next((i for i, c in enumerate(cells)
+                    if NUMBER_RE.search(c.get_text(" ", strip=True))), None)
+        if idx is None or idx + 1 >= len(cells):
             continue
-        # prefer a Drive link; if the site's link is broken ("https://") or
-        # absent, keep the row anyway so it shows up in coverage as failed,
-        # not silently missing from the corpus.
+        m = NUMBER_RE.search(cells[idx].get_text(" ", strip=True))
+        # prefer a Drive link; keep rows whose link is broken or absent, so
+        # coverage reports them instead of silently dropping them
         a = tr.select_one("a[href*='drive.google.com'], a[href*='drive.usercontent']") \
             or tr.select_one("a[href]")
-        href = (a["href"] if a is not None and a.get("href") else "")
+        href = a["href"] if a is not None and a.get("href") else ""
         number = re.sub(r"\s+", "", m.group(0))
-        sid = source_id_for(number)
+        sid = product.id_prefix + source_id_for(number)
         if sid in seen:
             continue
         seen.add(sid)
         out.append(FatwaEntry(
             source_id=sid,
             number=number,
-            title=tds[1].get_text(" ", strip=True),
+            title=cells[idx + 1].get_text(" ", strip=True),
             pdf_href=href,
             year=int(m.group(3)),
             month=m.group(2).upper(),

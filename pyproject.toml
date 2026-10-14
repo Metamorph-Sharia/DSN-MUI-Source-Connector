@@ -1,6 +1,6 @@
 [project]
 name = "dsn-mui-source-connector"
-version = "0.4.0"
+version = "0.5.0"
 description = "Source connector for the DSN-MUI fatwa corpus (dsnmui.or.id) — automated retrieval of structured raw data, no LLM."
 requires-python = ">=3.11"
 dependencies = [

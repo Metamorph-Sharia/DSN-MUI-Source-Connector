@@ -1,44 +1,42 @@
-"""Orchestrator-facing connector: implements CONNECTOR_INTERFACE.md v1.0.
+"""Orchestrator-facing connectors: implement CONNECTOR_INTERFACE.md v1.0.
 
-The CLI (`dsn sync`) and this adapter share the same internals (fetcher
-ladder, parser); the adapter just speaks the team's vocabulary.
+One engine, three products. Each product is its own connector class with its
+own name and cursor, so the orchestrator sees three independent sources:
 
-  our internals                  interface surface
-  ---------------------------    --------------------------------------
-  FatwaEntry (listing rows)      Discovered(source_id, source_url,
-                                 version=pdf href, metadata=row fields)
-  Fetcher.get_file ladder        fetch(item, store) -> Fetched
-  FetchError(kind=...)           SourceUnavailable / AuthFailed / ItemFailed
+  DsnFatwaConnector    dsn-fatwa    rulings (17 pages, paginated)
+  DsnPedomanConnector  dsn-pedoman  implementation guidelines (one page)
+  DsnTalimatConnector  dsn-talimat  circular letters / changes (one page)
 
-Deliberately NOT in the adapter: text extraction (shared downstream step
-per interface rules), dedupe/change detection, SQLite state — the
-orchestrator owns storage. The CLI keeps those for human/scheduled runs.
+Mapping to the interface:
+  FatwaEntry (listing row)        Discovered(source_id, source_url,
+                                  version=pdf href, metadata=row fields)
+  Fetcher.get_file ladder         fetch(item, store) -> Fetched
+  FetchError(kind=...)            SourceUnavailable / AuthFailed / ItemFailed
+
+Cursor = (year, sequence) packed as year*10000 + sequence. Fatwa numbers are
+reverse-chronological, but ta'limat numbers reset in a way that isn't
+monotonic across years (U-0161/2026 vs U-0727/2023), so the year comes first.
 
 Error mapping:
   discover: any FetchError except end-of-listing not_found
             -> SourceUnavailable (listing gated/changed/down: stop, retry later)
-  fetch:    transient, content, unknown -> ItemFailed (retryable — next run
-            re-fetches; the fetcher already backed off 3x per document)
-            quota                      -> SourceUnavailable (global rate limit)
-            gate                       -> SourceUnavailable (listing class)
-            auth                       -> AuthFailed (a human grabs it once)
-            not_found                  -> ItemFailed(retryable=False)
-            missing/broken link        -> ItemFailed(retryable=False)
+  fetch:    transient, content, unknown -> ItemFailed (retryable)
+            quota, gate                 -> SourceUnavailable
+            auth                        -> AuthFailed (a human grabs it once)
+            not_found, broken link,
+            Drive folder link           -> ItemFailed(retryable=False)
 
-Known limits (documented for the team):
-  * cursor = highest fatwa sequence number; the listing is reverse-chron so
-    cursor discovery early-stops after 1-2 pages. A revision that KEEPS its
-    old number (e.g. "dalam penyempurnaan" fatwas) is invisible to cursor
-    discovery — run discover(None) occasionally.
-  * version = exact pdf href incl. resourcekey: catches link swaps at the
-    source, not silent re-uploads under the same link (sha256 at storage
-    time does).
-  * rule 5 (identified UA): config.UA names the project. If the site's bot
-    gate turns out to react to UAs, revisit — never by defeating the gate.
+Known limits (for the team):
+  * a revision that keeps its number (e.g. "dalam penyempurnaan") is invisible
+    to cursor discovery; run discover(None) occasionally.
+  * version = exact file href incl. resourcekey: catches link swaps, not
+    silent re-uploads under the same link (sha256 at storage time does).
+  * text extraction is not in fetch(): it's a shared step over stored files.
 """
 import logging
 import re
 import time
+from typing import ClassVar
 
 try:
     from source_connector import (AuthFailed, ConnectorError, Discovered,
@@ -54,22 +52,26 @@ except ImportError:      # editable installs may not put repo root on sys.path
 
 from . import config
 from .fetcher import FetchError, Fetcher
+from .models import FatwaEntry
 from .parser import parse_listing
+from .products import PRODUCTS, Product
 
 log = logging.getLogger(__name__)
 
-_SEQ_RE = re.compile(r"^(\d+)")
+_SEQ_RE = re.compile(r"^(?:U-)?(\d+)", re.I)
 
 
-def _seq(number: str) -> int:
-    m = _SEQ_RE.match(number)
-    return int(m.group(1)) if m else 0
+def _key(e: FatwaEntry) -> int:
+    m = _SEQ_RE.match(e.number)
+    return e.year * 10000 + (int(m.group(1)) if m else 0)
 
 
 class DsnMuiConnector(SourceConnector):
-    name = "dsn-mui"
-    version = "0.4.0"
-    max_concurrency = 1                      # polite to dsnmui.or.id and Drive
+    """Shared engine. Concrete connectors below set `name` and `product`."""
+
+    product: ClassVar[Product] = PRODUCTS["fatwa"]
+    version = "0.5.0"
+    max_concurrency = 1                  # polite to dsnmui.or.id and Drive
 
     def __init__(self, config_map=None, *, fetcher=None):
         super().__init__(dict(config_map or {}))
@@ -79,43 +81,44 @@ class DsnMuiConnector(SourceConnector):
 
     # ------------------------------------------------------------------ discover
     def discover(self, cursor: str | None = None) -> Discovery:
-        cursor_seq = int(cursor) if cursor and cursor.isdigit() else 0
+        p = self.product
+        cursor_key = int(cursor) if cursor and cursor.isdigit() else 0
+        highest = cursor_key
         items: list[Discovered] = []
-        highest = cursor_seq
-        max_pages = self.config.get("max_pages", config.DEFAULT_MAX_PAGES)
+        max_pages = self.config.get("max_pages", config.DEFAULT_MAX_PAGES) if p.paginated else 1
         n = 1
         while n <= max_pages:
             if n > 1:
-                time.sleep(self.config.get("page_delay_s", 1.0))   # pace listing crawl
+                time.sleep(self.config.get("page_delay_s", 1.0))     # pace the crawl
             try:
-                html = self.fetcher.get_html(config.page_url(n))
+                html = self.fetcher.get_html(p.page_url(n))
             except FetchError as ex:
                 if ex.kind == "not_found" and items:
-                    break                                          # end of corpus
-                raise SourceUnavailable(f"listing page {n}: {ex}") from ex
-            rows = parse_listing(html)
+                    break                                            # end of corpus
+                raise SourceUnavailable(f"{p.key} listing page {n}: {ex}") from ex
+            rows = parse_listing(html, p)
             if not rows:
                 break
             fresh = 0
             for e in rows:
-                seq = _seq(e.number)
-                highest = max(highest, seq)
-                if seq <= cursor_seq:
+                key = _key(e)
+                highest = max(highest, key)
+                if key <= cursor_key:
                     continue
                 fresh += 1
                 items.append(Discovered(
                     source_id=e.source_id,
-                    source_url=e.pdf_href,                   # the Drive view link
-                    version=e.pdf_href,                      # changes when the file link changes
-                    metadata=e.to_dict(),                    # incl. pdf_href — fetch needs it
+                    source_url=e.pdf_href,                 # the Drive view link
+                    version=e.pdf_href,                    # changes when the file link changes
+                    metadata=e.to_dict(),                  # incl. pdf_href: fetch needs it
                 ))
             if cursor and fresh == 0:
-                break                                          # reverse-chron: older pages add nothing
+                break                                      # reverse-chron: older pages add nothing
             n += 1
-        if not items and not highest:
-            raise SourceUnavailable("listing unreadable: no rows parsed (source changed?)")
-        log.info("discover: %d items, cursor -> %s", len(items), highest or cursor)
-        return Discovery(items=items, cursor=str(highest) if highest else cursor)
+        if not highest:
+            raise SourceUnavailable(f"{p.key} listing unreadable: no rows parsed (source changed?)")
+        log.info("%s discover: %d items, cursor -> %s", self.name, len(items), highest)
+        return Discovery(items=items, cursor=str(highest))
 
     # ------------------------------------------------------------------ fetch
     def fetch(self, item: Discovered, store) -> Fetched:
@@ -123,6 +126,10 @@ class DsnMuiConnector(SourceConnector):
         if not href.startswith("http") or len(href) < 20:
             # the source itself lists a broken link (2 fatwas as of Oct 2026)
             raise ItemFailed(f"{item.source_id}: no usable file link at source ({href!r})",
+                             retryable=False)
+        if "/open?id=" in href or "drive_fs" in href:
+            # a Drive *folder*, not a file (one ta'limat entry). Needs a human.
+            raise ItemFailed(f"{item.source_id}: Drive folder link, not a single file",
                              retryable=False)
         try:
             data, ctype = self.fetcher.get_file(href)
@@ -136,10 +143,25 @@ class DsnMuiConnector(SourceConnector):
     @staticmethod
     def _as_interface_error(ex: FetchError) -> ConnectorError:
         kind = ex.kind
-        if kind == "quota" or kind == "gate":
+        if kind in ("quota", "gate"):
             return SourceUnavailable(str(ex))
         if kind == "auth":
             return AuthFailed(str(ex))
         if kind == "not_found":
             return ItemFailed(str(ex), retryable=False)
-        return ItemFailed(str(ex))            # transient / content / unknown
+        return ItemFailed(str(ex))                # transient / content / unknown
+
+
+class DsnFatwaConnector(DsnMuiConnector):
+    name = "dsn-fatwa"
+    product = PRODUCTS["fatwa"]
+
+
+class DsnPedomanConnector(DsnMuiConnector):
+    name = "dsn-pedoman"
+    product = PRODUCTS["pedoman"]
+
+
+class DsnTalimatConnector(DsnMuiConnector):
+    name = "dsn-talimat"
+    product = PRODUCTS["talimat"]
