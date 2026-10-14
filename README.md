@@ -46,13 +46,44 @@ adds the commands that do: `check` and a one-document sync.
 The repo's `.githooks/pre-push` runs the offline suite on every push. It is
 enabled with `git config core.hooksPath .githooks`; run that once per clone.
 
+## Orchestrator interface (v1.0)
+
+`dsn_ingest/adapter.py` implements the team's `SourceConnector` class
+interface (`CONNECTOR_INTERFACE.md` / unmodified root `source_connector.py`):
+
+```python
+from dsn_ingest.adapter import DsnMuiConnector
+
+connector = DsnMuiConnector({})              # optional: max_pages, delay_s, page_delay_s
+discovery = connector.discover(saved_cursor) # Discovery(items, cursor)
+fetched = connector.fetch(item, file_store)  # saves original bytes via store.put()
+```
+
+`discover(cursor)` early-stops the reverse-chronological listing once pages
+fall below the cursor, so steady-state discovery is 1–2 page fetches instead
+of 17. Errors map to the interface vocabulary: gate/quota →
+`SourceUnavailable`, Drive sign-in → `AuthFailed`, broken/404 links →
+non-retryable `ItemFailed`, per-doc transient → retryable `ItemFailed`.
+Text extraction is deliberately *not* in `fetch()` — per the interface, it
+runs as a shared step over stored files (the CLI's own `sync` still does it).
+
+```bash
+uv run python -m pytest tests -q             # offline interface tests, recorded fixtures
+```
+
+Known limit to tell the team: revisions that keep the same fatwa number are
+invisible to cursor discovery — run `discover(None)` occasionally.
+
 ## Layout
 
 ```
 pyproject.toml       uv env + `dsn` CLI entry point
 CONTRACT.md          the inter-repo contract (share this with OJK/BI connectors)
+CONNECTOR_INTERFACE.md  team interface spec v1.0 (from the OJK/BI side)
+source_connector.py  the interface file, copied unmodified — do not edit here
 dsn_ingest/
   __main__.py        CLI: check · discover · sync · list · status
+  adapter.py         DsnMuiConnector: the team's SourceConnector interface
   base.py            contract: verbs, error classes, delta semantics
   connector.py       the five modules wired together
   parser.py          listing table → FatwaEntry

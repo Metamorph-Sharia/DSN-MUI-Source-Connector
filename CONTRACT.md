@@ -1,3 +1,10 @@
+> **2026-10-14:** the team adopted a Python connector interface
+> (`CONNECTOR_INTERFACE.md` v1.0, shared by the OJK/BI side). The
+> orchestrator-facing surface of this repo is **`dsn_ingest/adapter.py`**
+> (`DsnMuiConnector`, using the unmodified root `source_connector.py`).
+> The CLI contract documented below stays as the human/scheduler surface
+> and the debug tool; both share the same internals.
+
 # Source Connector Contract
 
 Contract between the per-source repos (`DSN-MUI-Source-Connector`,

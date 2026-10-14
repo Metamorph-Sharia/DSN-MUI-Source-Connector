@@ -50,6 +50,7 @@ run 0 "dsn list"                 uv run dsn list
 run 0 "dsn list --filter failed" uv run dsn list --filter failed
 run "0 1" "dsn status (0 aligned, 1 not)" uv run dsn status
 run "0 1" "dsn status emits valid JSON" bash -c 'uv run dsn status | python3 -c "import sys,json; json.load(sys.stdin)"'
+run 0 "interface tests (offline, tests/fixtures)" uv run python -m pytest tests -q
 
 if index_fresh; then
     run 0 "dsn sync --limit 0 (no downloads, no listing requests)" uv run dsn sync --limit 0 --quiet

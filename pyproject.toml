@@ -1,6 +1,6 @@
 [project]
 name = "dsn-mui-source-connector"
-version = "0.3.1"
+version = "0.4.0"
 description = "Source connector for the DSN-MUI fatwa corpus (dsnmui.or.id) — automated retrieval of structured raw data, no LLM."
 requires-python = ">=3.11"
 dependencies = [
@@ -11,6 +11,9 @@ dependencies = [
 
 [project.scripts]
 dsn = "dsn_ingest.__main__:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
 
 [build-system]
 requires = ["hatchling"]

@@ -202,7 +202,14 @@ run for smoke tests.
 
 ## 7. Interface & packaging
 
-- **CLI is the contract.** `pyproject.toml [project.scripts]` → `dsn`.
+- **Two surfaces over one pipeline.** The orchestrator-facing surface is
+  the team's Python interface: `dsn_ingest/adapter.DsnMuiConnector`
+  (per `CONNECTOR_INTERFACE.md` v1.0, interface file copied unmodified as
+  `source_connector.py`). The CLI remains the human/scheduler surface and
+  debug tool — both share `fetcher/parser/store`, so a fix lands once.
+  Adapter errors map our `FetchError` kinds onto `SourceUnavailable /
+  AuthFailed / ItemFailed`; see `adapter.py` docstring for the table.
+- **CLI contract.** `pyproject.toml [project.scripts]` → `dsn`.
   Orchestrator calls: `uv run --directory <connector-repo> dsn sync --out …`
   per repo; merges JSONL. Zero shared code; language-per-repo is free.
 - **`base.SourceConnector` Protocol** is documentation-grade duck typing:
