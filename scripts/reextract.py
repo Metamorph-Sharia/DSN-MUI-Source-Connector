@@ -24,8 +24,8 @@ def main() -> int:
         "WHERE raw_path IS NOT NULL AND last_result IN ('new','changed','unchanged')").fetchall()
     ok = flagged = skipped = 0
     for r in rows:
-        p = Path(r["raw_path"])
-        if not p.exists():                      # repo moved? re-derive from sha
+        p = store.locate(r["raw_path"])
+        if not p.exists():                      # blob renamed? re-derive from sha
             p = Path(store.blob_dir) / r["sha256"][:2] / f"{r['sha256']}.pdf"
         if not p.exists() or p.suffix != ".pdf":
             skipped += 1

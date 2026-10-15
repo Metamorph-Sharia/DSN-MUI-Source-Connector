@@ -70,7 +70,7 @@ def ocr_document(source_id: str, dpi: int) -> str:
     out_path = OCR_DIR / f"{row['sha256']}.ara.txt"
     if out_path.exists():
         return "already done"
-    doc = pymupdf.open(row["raw_path"])
+    doc = pymupdf.open(str(store.locate(row["raw_path"])))
     parts, pages_hit, pages_total = [], 0, len(doc)
     with tempfile.TemporaryDirectory() as td:
         png = Path(td) / "page.png"

@@ -42,7 +42,7 @@ run 0 "modules compile"          uv run python -m py_compile dsn_ingest/*.py
 run 0 "dsn --version"            uv run dsn --version
 run 0 "dsn --help"               uv run dsn --help
 run 0 "dsn help"                 uv run dsn help
-for v in check discover sync list status; do
+for v in check discover sync list status export; do
     run 0 "dsn help $v"          uv run dsn help "$v"
 done
 run 2 "unknown verb is rejected" uv run dsn nonsense
@@ -50,7 +50,9 @@ run 0 "dsn list"                 uv run dsn list
 run 0 "dsn list --filter failed" uv run dsn list --filter failed
 run "0 1" "dsn status (0 aligned, 1 not)" uv run dsn status
 run "0 1" "dsn status emits valid JSON" bash -c 'uv run dsn status | python3 -c "import sys,json; json.load(sys.stdin)"'
-run 0 "interface tests (offline, tests/fixtures)" uv run python -m pytest tests -q
+run 0 "dsn export (a complete contract v2 bundle)" bash -c "uv run dsn export --out '$TMP/bundle' --run-id verify >/dev/null && test -f '$TMP/bundle/manifest.json'"
+run 2 "dsn export without --out is rejected" uv run dsn export
+run 0 "interface and export tests (offline, tests/fixtures)" uv run python -m pytest tests -q
 
 if index_fresh; then
     run 0 "dsn sync --limit 0 (no downloads, no listing requests)" uv run dsn sync --limit 0 --quiet

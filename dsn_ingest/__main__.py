@@ -5,6 +5,7 @@
   dsn sync [--all] [--limit N] [--out F] download and extract new or changed docs
   dsn list [--filter LIST]               print every indexed doc with its status
   dsn status                             coverage, last runs, recent errors
+  dsn export --out DIR [--run-id ID]     the held corpus as a contract v2 bundle
   dsn help [verb]                        this overview, or help for one verb
 
 Output conventions:
@@ -16,13 +17,15 @@ Exit codes: 0 ok · 1 partial (some docs failed) · 2 run-level failure.
 import argparse
 import json
 import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
 from . import __version__, config
 from .connector import DsnConnector
 from .store import Store
 from .fetcher import Fetcher
 
-VERBS = ["check", "discover", "sync", "list", "status"]
+VERBS = ["check", "discover", "sync", "list", "status", "export"]
 
 EPILOG = """\
 verbs:
@@ -31,6 +34,7 @@ verbs:
   sync       download and extract documents; prints only new/changed/failed
   list       print every indexed document with its status (full snapshot)
   status     JSON coverage report: remote vs local, errors, recent runs
+  export     write every held fatwa as a contract v2 bundle for the platform loader
   help       show this overview, or help for one verb: dsn help sync
 
 output:
@@ -134,6 +138,15 @@ def _parser():
                    description="Reconcile the remote index with local state. Exit 0 if "
                                "aligned (nothing missing or failed), 1 otherwise. Network-free.")
 
+    x = sub.add_parser("export", help="the held corpus as a contract v2 bundle (JSON stats)",
+                       description="Write every held fatwa (PDF, Latin text, Arabic OCR) as one "
+                                   "contract v2 bundle, a full snapshot for `metamorph load`. "
+                                   "Network-free.")
+    x.add_argument("--out", metavar="DIR", required=True, type=Path,
+                   help="an empty or new directory for the bundle")
+    x.add_argument("--run-id", default=None,
+                   help="identifies this export to the loader (default: UTC timestamp)")
+
     h = sub.add_parser("help", help="show this overview, or help for one verb",
                        description="dsn help            overview and exit codes\n"
                                    "dsn help sync       options for one verb")
@@ -159,6 +172,13 @@ def main(argv=None) -> int:
                "runs": store.recent_runs(5), "recent_errors": store.recent_errors(10)}
         print(json.dumps(doc, indent=2, ensure_ascii=False))
         return 0 if doc["aligned"] else 1
+
+    if args.cmd == "export":
+        from .export_v2 import export_bundle          # needs metamorph-contract; only this verb does
+        run_id = args.run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        stats = export_bundle(store, args.out, run_id=run_id)
+        print(json.dumps({"bundle": str(args.out), "run_id": run_id, **stats.as_dict()}, indent=2))
+        return 0
 
     conn = build(store)
     try:

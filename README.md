@@ -89,6 +89,25 @@ uv run python -m pytest tests -q             # offline interface tests, recorded
 Known limit to tell the team: revisions that keep the same fatwa number are
 invisible to cursor discovery — run `discover(None)` occasionally.
 
+## For the platform (contract v2)
+
+```bash
+uv run dsn export --out data/exports/v2/RUN     # network-free; prints counts as JSON
+```
+
+Writes every held fatwa as one [contract v2 bundle](../Metamorph-Knowledge-Platform/packages/metamorph-contract/CONTRACT_V2.md),
+a full snapshot that `metamorph load` reads into the platform's PostgreSQL.
+
+- **Connector** `dsn-fatwa`, the same name and `source_id` as the interface adapter.
+- **IDs:** `dsnmui:fatwa:{n}` (fatwa numbers never repeat, so no year). Citation "Fatwa DSN-MUI No. 01/DSN-MUI/IV/2000".
+- **Files and texts:** the PDF, its Latin text layer (`id`) and its Arabic OCR (`ar`), as separate texts of the same file. The store's `=== page N ===` markers become the contract's `<!-- page N -->`.
+- **Status** is `unknown`: DSN-MUI doesn't publish one. A fatwa never acquired (a broken link at the source) has no content and is counted, not exported.
+- Only fatwas so far: `sync` stores fatwas only, so pedoman and ta'limat need storing first.
+
+The store records file paths relative to `data/dsn/`. Older stores with absolute paths are converted when opened, so the data directory can move between machines or into a container.
+
+**As a container:** the platform's Airflow runs this connector from [Dockerfile](Dockerfile), built from the workspace root, the directory holding every repository: `docker build -f DSN-MUI-Source-Connector/Dockerfile -t metamorph/dsn-mui-connector:dev .` (or `docker compose --profile connectors build` in Metamorph-Knowledge-Platform). `data/` is bind-mounted, not copied, so scheduled runs and your own CLI runs share one store. Don't run both at once. The image includes Tesseract `ara`, and the scheduled job runs `scripts/ocr_arabic.py` after each sync.
+
 ## Layout
 
 ```
@@ -97,7 +116,9 @@ CONTRACT.md          the inter-repo contract (share this with OJK/BI connectors)
 CONNECTOR_INTERFACE.md  team interface spec v1.0 (from the OJK/BI side)
 source_connector.py  the interface file, copied unmodified — do not edit here
 dsn_ingest/
-  __main__.py        CLI: check · discover · sync · list · status
+  __main__.py        CLI: check · discover · sync · list · status · export
+  contract_v2.py     a held fatwa → contract v2 NormalizedDocument (pure)
+  export_v2.py       the store → one contract v2 bundle
   adapter.py         DsnMuiConnector: the team's SourceConnector interface
   base.py            contract: verbs, error classes, delta semantics
   connector.py       the five modules wired together

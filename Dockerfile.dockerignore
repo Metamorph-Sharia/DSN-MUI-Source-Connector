@@ -1,0 +1,12 @@
+# Only what DSN-MUI-Source-Connector/Dockerfile copies: the build context is the whole workspace, data included.
+*
+!Metamorph-Knowledge-Platform/packages/metamorph-contract
+!DSN-MUI-Source-Connector/pyproject.toml
+!DSN-MUI-Source-Connector/uv.lock
+!DSN-MUI-Source-Connector/README.md
+!DSN-MUI-Source-Connector/dsn_ingest
+!DSN-MUI-Source-Connector/scripts
+!DSN-MUI-Source-Connector/source_connector.py
+**/__pycache__
+**/.venv
+**/.pytest_cache

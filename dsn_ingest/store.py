@@ -1,5 +1,8 @@
 """SQLite state + content-addressed blob store.
 
+File paths are stored relative to the data directory (data/dsn), so the
+directory can move between machines or be mounted into a container.
+
 Private to this connector — the outside world only sees DocRecord lines
 and the status/coverage dicts. But the schema is deliberately the same
 5-module shape (index / docs / runs / errors) so an orchestrator could,
@@ -66,13 +69,40 @@ CREATE TABLE IF NOT EXISTS run_error (
 """
 
 
+# Older stores recorded absolute paths from the machine that ran the sync.
+LEGACY_DATA_DIR = "/data/dsn/"
+PATH_COLUMNS = (("fatwa_docs", "raw_path"), ("fatwa_docs", "text_path"), ("blobs", "path"))
+
+
 class Store:
     def __init__(self, db_path: Path = config.DB_PATH, blob_dir: Path = config.BLOB_DIR):
         db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.data_dir = db_path.parent
         self.blob_dir = blob_dir
         self.db = sqlite3.connect(db_path)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        self._relativize_legacy_paths()
+
+    # ---------- file paths ----------
+
+    def locate(self, stored: str | None) -> Path | None:
+        """The file a stored path points to."""
+        return self.data_dir / stored if stored else None
+
+    def _relative(self, path: Path) -> str:
+        try:
+            return str(Path(path).resolve().relative_to(self.data_dir.resolve()))
+        except ValueError:
+            return str(path)                # outside the data directory: keep it as given
+
+    def _relativize_legacy_paths(self) -> None:
+        for table, column in PATH_COLUMNS:
+            self.db.execute(
+                f"""UPDATE {table} SET {column} = substr({column}, instr({column}, ?) + ?)
+                    WHERE {column} LIKE '/%' || ? || '%'""",
+                (LEGACY_DATA_DIR, len(LEGACY_DATA_DIR), LEGACY_DATA_DIR))
+        self.db.commit()
 
     # ---------- discovery index ----------
 
@@ -130,7 +160,7 @@ class Store:
 
         self.db.execute(
             """INSERT OR IGNORE INTO blobs (sha256, path, size, mime, created) VALUES (?, ?, ?, ?, ?)""",
-            (sha, str(raw_path), size, ctype, now))
+            (sha, self._relative(raw_path), size, ctype, now))
         self.db.execute(
             """UPDATE blobs SET ref_count = ref_count + 1 WHERE sha256 = ?""", (sha,))
         self.db.execute(
@@ -143,7 +173,7 @@ class Store:
                  pdf_href = excluded.pdf_href, last_result = excluded.last_result,
                  error_class = NULL, error_message = NULL,
                  fetched_at = excluded.fetched_at, updated_at = excluded.updated_at""",
-            (e.source_id, sha, size, ctype, str(raw_path), e.pdf_href, status, now, now))
+            (e.source_id, sha, size, ctype, self._relative(raw_path), e.pdf_href, status, now, now))
         self.db.commit()
         return status
 
@@ -151,7 +181,7 @@ class Store:
         self.db.execute(
             """UPDATE fatwa_docs SET text_path = ?, needs_ocr = ?, updated_at = ?
                WHERE source_id = ?""",
-            (str(text_path) if text_path else None,
+            (self._relative(text_path) if text_path else None,
              None if needs_ocr is None else int(needs_ocr), utcnow(), source_id))
         self.db.commit()
 
@@ -188,7 +218,8 @@ class Store:
                 connector=connector, source_id=r["source_id"], title=r["title"],
                 status=status, pdf_href=r["pdf_href"],
                 sha256=r["sha256"], size_bytes=r["size_bytes"], content_type=r["content_type"],
-                raw_path=r["raw_path"], text_path=r["text_path"],
+                raw_path=_as_str(self.locate(r["raw_path"])),
+                text_path=_as_str(self.locate(r["text_path"])),
                 needs_ocr=None if r["needs_ocr"] is None else bool(r["needs_ocr"]),
                 error=r["error_class"], error_message=r["error_message"],
                 at=r["updated_at"] or ""))
@@ -243,3 +274,7 @@ class Store:
         rows = self.db.execute(
             "SELECT * FROM run_error ORDER BY rowid DESC LIMIT ?", (n,)).fetchall()
         return [dict(r) for r in rows]
+
+
+def _as_str(path: Path | None) -> str | None:
+    return str(path) if path else None

@@ -7,6 +7,7 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "requests>=2.31",
     "pymupdf>=1.24",
+    "metamorph-contract",
 ]
 
 [project.scripts]
@@ -14,6 +15,9 @@ dsn = "dsn_ingest.__main__:main"
 
 [dependency-groups]
 dev = ["pytest>=8"]
+
+[tool.uv.sources]
+metamorph-contract = { path = "../Metamorph-Knowledge-Platform/packages/metamorph-contract", editable = true }
 
 [build-system]
 requires = ["hatchling"]
