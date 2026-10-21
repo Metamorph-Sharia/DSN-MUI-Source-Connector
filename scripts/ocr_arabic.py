@@ -37,20 +37,11 @@ from pathlib import Path
 import pymupdf
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from dsn_ingest import config  # noqa: E402
+from dsn_ingest import config, extract  # noqa: E402
 from dsn_ingest.store import Store  # noqa: E402
 
 OCR_DIR = config.DATA_DIR / "ocr"
-AR_LINE = re.compile(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]")
-
-
-def keep_line(line: str) -> bool:
-    ns = re.sub(r"\s", "", line)
-    if len(ns) < 4:
-        return False
-    arabic = len(AR_LINE.findall(ns))
-    digits = sum(1 for c in ns if c.isdigit())
-    return arabic / len(ns) >= 0.8 and digits <= 1
+keep_line = extract.is_arabic_line  # the rule MinerU's Arabic is split off by too
 
 
 def ocr_png(png: Path) -> str:

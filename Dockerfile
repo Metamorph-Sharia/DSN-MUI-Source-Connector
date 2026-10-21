@@ -18,6 +18,7 @@ RUN useradd --create-home --uid 1000 connector && mkdir /bundles && chown connec
 
 WORKDIR /workspace/DSN-MUI-Source-Connector
 COPY Metamorph-Knowledge-Platform/packages/metamorph-contract /workspace/Metamorph-Knowledge-Platform/packages/metamorph-contract
+COPY Metamorph-Knowledge-Platform/packages/metamorph-pdf-text /workspace/Metamorph-Knowledge-Platform/packages/metamorph-pdf-text
 COPY DSN-MUI-Source-Connector/pyproject.toml ./pyproject.toml
 COPY DSN-MUI-Source-Connector/uv.lock ./uv.lock
 COPY DSN-MUI-Source-Connector/README.md ./README.md

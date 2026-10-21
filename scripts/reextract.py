@@ -3,7 +3,7 @@
 
 Use whenever the extraction engine or its cleaning rules change (happened
 twice in week one: pypdf→PyMuPDF, then NFKC + garbage stripping + page
-markers). Reads blobs from the content-addressed store, rebuilds
+markers), and to switch METAMORPH_PDF_ENGINE (pymupdf ⇄ mineru) for the texts held. Reads blobs from the content-addressed store, rebuilds
 data/dsn/text/<sha>.txt, updates text_path/needs_ocr in the DB.
 Never touches the archived PDFs themselves.
 
@@ -30,15 +30,15 @@ def main() -> int:
         if not p.exists() or p.suffix != ".pdf":
             skipped += 1
             continue
-        pages = extract.pdf_to_pages(p)
-        if pages is None:
+        extracted = extract.extract_pdf(p)
+        if extracted is None:
             store.set_text(r["source_id"], None, None)      # engine unavailable
             skipped += 1
-        elif len(extract.page_text(pages)) < extract.MIN_TEXT_LEN:
+        elif len(extract.page_text(extracted.pages)) < extract.MIN_TEXT_LEN:
             store.set_text(r["source_id"], None, True)      # scanned-ish
             flagged += 1
         else:
-            store.set_text(r["source_id"], str(extract.write_text(r["sha256"], pages)), False)
+            store.set_text(r["source_id"], str(extract.save(r["sha256"], extracted)), False)
             ok += 1
     store.db.commit()
     print(f"re-extracted: {ok} ok | {flagged} needs_ocr | {skipped} skipped")

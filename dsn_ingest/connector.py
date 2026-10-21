@@ -157,13 +157,13 @@ class DsnConnector:
             else:
                 stage = "extract"
                 if is_pdf:
-                    pages = extract.pdf_to_pages(blob)
-                    if pages is None:                       # extractor unavailable
+                    extracted = extract.extract_pdf(blob)
+                    if extracted is None:                   # extractor unavailable
                         self.store.set_text(e.source_id, None, None)
-                    elif len(extract.page_text(pages)) < extract.MIN_TEXT_LEN:
+                    elif len(extract.page_text(extracted.pages)) < extract.MIN_TEXT_LEN:
                         self.store.set_text(e.source_id, None, True)   # scanned-ish
                     else:
-                        text_path = str(extract.write_text(sha, pages))
+                        text_path = str(extract.save(sha, extracted))
                         self.store.set_text(e.source_id, text_path, False)
                 else:
                     self.store.set_text(e.source_id, None, None)

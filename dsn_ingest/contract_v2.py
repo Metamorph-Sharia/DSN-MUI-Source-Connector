@@ -16,6 +16,7 @@ import re
 from dataclasses import dataclass
 
 from metamorph_contract import (
+    Extraction,
     Confidence,
     DocumentInfo,
     ExtractionMethod,
@@ -48,6 +49,7 @@ class HeldText:
     language: str
     method: ExtractionMethod
     content: str                 # paged with the contract's markers (see paged_text)
+    extraction: Extraction | None = None  # how an engine read it (contract 2.1); None: the connector's own reading
 
 
 @dataclass(frozen=True)
@@ -141,9 +143,9 @@ def _aliases(number: str) -> tuple[str, ...]:
 
 
 def _page_count(texts: tuple[HeldText, ...]) -> int | None:
-    """The text layer has a marker for every PDF page; the OCR only for pages with Arabic."""
+    """The Latin text has a marker for every PDF page; Tesseract's Arabic only for pages with Arabic."""
     for text in texts:
-        if text.method == ExtractionMethod.TEXT_LAYER:
+        if text.language == "id":
             return len(split_pages(text.content)) or None
     return None
 
@@ -157,4 +159,5 @@ def _text_ref(text: HeldText, *, of_file: str) -> TextRef:
         rights=Rights.PUBLIC,
         paged=True,
         of_file=of_file,
+        extraction=text.extraction,
     )

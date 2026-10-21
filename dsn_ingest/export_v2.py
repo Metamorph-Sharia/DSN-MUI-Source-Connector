@@ -15,7 +15,7 @@ from pathlib import Path
 
 from metamorph_contract import BundleWriter, ExtractionMethod, is_unresolved
 
-from . import __version__
+from . import __version__, extract
 from .contract_v2 import CONNECTOR, HeldFatwa, HeldText, exported_texts, normalized_document, paged_text
 from .store import Store
 
@@ -78,12 +78,18 @@ def held_fatwa(store: Store, row: sqlite3.Row) -> HeldFatwa:
 
 
 def _held_texts(store: Store, row: sqlite3.Row):
+    """The Latin text, and the Arabic: MinerU's beside the Latin when MinerU read the file, else Tesseract's."""
     latin = store.locate(row["text_path"])
+    read = extract.read_record(latin) if latin is not None else None
     if latin is not None:
-        yield HeldText("id", ExtractionMethod.TEXT_LAYER, _paged(latin))
-    arabic = store.data_dir / OCR_DIR / f"{row['sha256']}.ara.txt"
+        yield HeldText("id", read.method if read else ExtractionMethod.TEXT_LAYER, _paged(latin), _of(read))
+    arabic = read.arabic if read else store.data_dir / OCR_DIR / f"{row['sha256']}.ara.txt"
     if arabic.is_file():
-        yield HeldText("ar", ExtractionMethod.OCR, _paged(arabic))
+        yield HeldText("ar", ExtractionMethod.OCR, _paged(arabic), _of(read))
+
+
+def _of(read: extract.ReadRecord | None):
+    return read.extraction if read else None
 
 
 def _paged(path: Path) -> str:
