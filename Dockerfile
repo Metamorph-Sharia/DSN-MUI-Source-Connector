@@ -5,9 +5,6 @@
 # data/ is not in the image: Airflow bind-mounts the repository's data/ directory at runtime.
 FROM python:3.11-slim
 COPY --from=ghcr.io/astral-sh/uv:0.9.27 /uv /usr/local/bin/uv
-RUN apt-get update \
-    && apt-get install --yes --no-install-recommends tesseract-ocr tesseract-ocr-ara \
-    && rm -rf /var/lib/apt/lists/*
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \

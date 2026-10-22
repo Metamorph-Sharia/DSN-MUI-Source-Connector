@@ -135,7 +135,7 @@ Extraction changes (engine upgrades, cleaning rules) are applied by
 | Legacy files (≤ ~2015, ids starting `0BxT…`) require the `resourcekey` query param | `drive_download_url()` copies resourcekey from the listing href into the download URL; stripping it yields a sign-in page (`auth` error, proven live) |
 | Drive >~25 MB answers a "can't scan for viruses" form (hidden `id`+`uuid` inputs) | auto-detected and resubmitted once (`_consent_form`) |
 | dsnmui.or.id intermittently serves a JS bot-interstitial ("One moment, please…", volume-triggered, minutes-hours) | `get_html` waits 20/40/60 s; then raises `gate` — not fatal (§5) |
-| Latin text is in a text layer for every document. Arabic script is deliberately NOT: `extract.py` strips it (2000–2007 layers store it half-damaged by PUA glyphs — one quality below OCR). All Arabic therefore comes from `scripts/ocr_arabic.py` over the page images | `text/` = pure Latin, `ocr/` = pure Arabic, both `=== page N ===` marked, so a consumer joins them per page. Every held document eventually has an OCR file (pure-Latin results get a small/empty one as a processed marker). `needs_ocr` is flagged for documents with no usable text layer at all |
+| Latin text is in a text layer for every document. Arabic script is deliberately NOT: `extract.py` strips it (2000–2007 layers store it half-damaged by PUA glyphs — one quality below OCR). All Arabic therefore comes from OCR over the page images: MinerU's (before 2026-10-22, Tesseract's `scripts/ocr_arabic.py`) | `text/` = pure Latin, `ocr/` = pure Arabic, both `=== page N ===` marked, so a consumer joins them per page. Every held document eventually has an OCR file (pure-Latin results get a small/empty one as a processed marker). `needs_ocr` is flagged for documents with no usable text layer at all |
 
 ---
 
@@ -249,8 +249,6 @@ run for smoke tests.
   after OJK/BI emit real records and the orchestrator defines consumption.
 - **Where `sync` cadence lives**: cron on each repo vs a thin orchestrator
   runner — unresolved, doesn't block building.
-- **OCR**: implemented as a downstream job, `scripts/ocr_arabic.py` (tesseract
-  `ara` over rendered pages, Arabic-dominant line filter, ~80–90% accuracy).
-  Output convention `data/dsn/ocr/<sha>.ara.txt`; the connector and its delta
-  records stay unchanged. Sibling connectors with scanned sources can reuse
-  the script or the recipe.
+- **OCR**: MinerU reads the Arabic since 2026-10-22 (`METAMORPH_PDF_ENGINE=mineru`), beside the Latin text.
+  The earlier downstream job, `scripts/ocr_arabic.py` (Tesseract `ara`), is retired; its output in
+  `data/dsn/ocr/<sha>.ara.txt` is still read for a file MinerU hasn't read.

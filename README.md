@@ -106,7 +106,7 @@ a full snapshot that `metamorph load` reads into the platform's PostgreSQL.
 
 The store records file paths relative to `data/dsn/`. Older stores with absolute paths are converted when opened, so the data directory can move between machines or into a container.
 
-**As a container:** the platform's Airflow runs this connector from [Dockerfile](Dockerfile), built from the workspace root, the directory holding every repository: `docker build -f DSN-MUI-Source-Connector/Dockerfile -t metamorph/dsn-mui-connector:dev .` (or `docker compose --profile connectors build` in Metamorph-Knowledge-Platform). `data/` is bind-mounted, not copied, so scheduled runs and your own CLI runs share one store. Don't run both at once. The image includes Tesseract `ara`, and the scheduled job runs `scripts/ocr_arabic.py` after each sync.
+**As a container:** the platform's Airflow runs this connector from [Dockerfile](Dockerfile), built from the workspace root, the directory holding every repository: `docker build -f DSN-MUI-Source-Connector/Dockerfile -t metamorph/dsn-mui-connector:dev .` (or `docker compose --profile connectors build` in Metamorph-Knowledge-Platform). `data/` is bind-mounted, not copied, so scheduled runs and your own CLI runs share one store. Don't run both at once. MinerU (`METAMORPH_PDF_ENGINE=mineru`) reads each fatwa, its Arabic quotations included, so the image holds no OCR tools.
 
 ## Layout
 
@@ -130,25 +130,16 @@ dsn_ingest/
   config.py          URLs + tunables
 data/dsn/            runtime output: blobs/, text/, ocr/, dsn_fatwa.db (gitignored)
 scripts/
-  ocr_arabic.py      downstream Arabic OCR over archived PDFs (tesseract; not part of sync)
   reextract.py       rebuild text/ from archived PDFs after extraction/cleaning changes
   verify.sh          pre-push checks: every command vs its expected exit code
 ```
 
-## Arabic OCR (downstream job)
+## Arabic
 
-```bash
-brew install tesseract tesseract-lang          # one-time system dep
-uv run python scripts/ocr_arabic.py --status   # how many docs are ocr'd
-uv run python scripts/ocr_arabic.py            # OCR documents missing Arabic
-```
-
-`scripts/ocr_arabic.py` renders pages at 300 dpi and keeps Arabic-dominant
-lines; output goes to `data/dsn/ocr/<sha>.ara.txt`. It is separate from
-`sync` by design — the connector's job ends at archiving PDFs + the PDF text
-layer. Accuracy is ~80–90% (harakat-heavy naskh trips tesseract), so treat
-Arabic as search/retrieval material, not certified citation. Latin text
-should come from the text layer, never this OCR.
+MinerU (`METAMORPH_PDF_ENGINE=mineru`, the platform's metamorph-pdf-text) reads each fatwa's Arabic quotations
+from the page images, beside the Latin text: `data/dsn/text/<sha>.ara.txt`. Before MinerU, Tesseract wrote them
+to `data/dsn/ocr/<sha>.ara.txt` (`scripts/ocr_arabic.py`, retired 2026-10-22); export still reads those for a
+file MinerU hasn't read. Treat Arabic as search and retrieval material, not certified citation.
 
 ## Facts learned from the site (Oct 2026)
 

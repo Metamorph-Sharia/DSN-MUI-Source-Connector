@@ -20,7 +20,7 @@ from .contract_v2 import CONNECTOR, HeldFatwa, HeldText, exported_texts, normali
 from .store import Store
 
 PDF_MEDIA_TYPE = "application/pdf"
-OCR_DIR = "ocr"                         # scripts/ocr_arabic.py writes {sha}.ara.txt here
+OCR_DIR = "ocr"                         # Tesseract's Arabic, from before MinerU (the retired scripts/ocr_arabic.py)
 
 _HELD = """
 SELECT i.source_id, i.number, i.title, i.year, i.month, i.pdf_href,
@@ -78,7 +78,8 @@ def held_fatwa(store: Store, row: sqlite3.Row) -> HeldFatwa:
 
 
 def _held_texts(store: Store, row: sqlite3.Row):
-    """The Latin text, and the Arabic: MinerU's beside the Latin when MinerU read the file, else Tesseract's."""
+    """The Latin text, and the Arabic: MinerU's beside the Latin when MinerU read the file, else Tesseract's from
+    before MinerU, if it read the file (the rollback engine reads no Arabic of its own)."""
     latin = store.locate(row["text_path"])
     read = extract.read_record(latin) if latin is not None else None
     if latin is not None:

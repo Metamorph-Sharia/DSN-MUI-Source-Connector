@@ -10,9 +10,9 @@ only the Latin reading matter:
   * strip: all Arabic ranges, private-use area, zero-width/BiDi controls
   * tidy: collapsed runs of spaces, no triple blank lines
 
-Arabic content is NOT lost — it lives in data/dsn/ocr/<sha>.ara.txt,
-produced by scripts/ocr_arabic.py over the same archived PDF (one quality
-tier, ~85%, instead of a worse copy baked into the text layer).
+Arabic content is NOT lost: MinerU OCRs it (below). Before MinerU it lived in data/dsn/ocr/<sha>.ara.txt,
+from Tesseract over the same archived PDF (scripts/ocr_arabic.py, retired), which export still reads for a
+file MinerU hasn't read.
 
 The needs_ocr decision is computed from page CONTENT only, never markers.
 
