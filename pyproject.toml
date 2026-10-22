@@ -8,6 +8,7 @@ dependencies = [
     "requests>=2.31",
     "pymupdf>=1.24",
     "metamorph-contract",
+    "metamorph-pdf-text",  # METAMORPH_PDF_ENGINE=mineru: MinerU, checked against the text layer
 ]
 
 [project.scripts]
@@ -18,6 +19,7 @@ dev = ["pytest>=8"]
 
 [tool.uv.sources]
 metamorph-contract = { path = "../Metamorph-Knowledge-Platform/packages/metamorph-contract", editable = true }
+metamorph-pdf-text = { path = "../Metamorph-Knowledge-Platform/packages/metamorph-pdf-text", editable = true }
 
 [build-system]
 requires = ["hatchling"]

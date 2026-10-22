@@ -93,3 +93,21 @@ def test_a_missing_blob_stops_the_export_without_a_manifest(store, tmp_path):
     with pytest.raises(FileNotFoundError):
         export_bundle(store, tmp_path / "bundle", run_id="r1")
     assert not (tmp_path / "bundle" / "manifest.json").exists()
+
+
+def test_a_text_mineru_read_is_exported_with_how_it_was_read_and_minerus_arabic(store, tmp_path):
+    from metamorph_contract import Extraction, ExtractionMethod
+
+    sha = acquire(store, GIRO, PDF, latin=None, arabic="=== page 1 ===\nTesseract")
+    read = extract.Extracted(
+        ["FATWA tentang GIRO"], ExtractionMethod.OCR, Extraction("mineru", "4.0.12+t1", "standard", "ocr", 1, 0), ["بسم الله"]
+    )
+    store.set_text(GIRO.source_id, extract.save(sha, read), False)
+
+    export_bundle(store, tmp_path / "bundle", run_id="r1")
+
+    [entry] = entries(tmp_path / "bundle")
+    texts = {text.language: text for text in entry.document.texts}
+    assert (texts["id"].method, texts["id"].extraction) == (ExtractionMethod.OCR, read.extraction)
+    assert texts["ar"].extraction == read.extraction
+    assert "بسم الله" in Bundle(tmp_path / "bundle").blob_path(texts["ar"].sha256).read_text(encoding="utf-8")

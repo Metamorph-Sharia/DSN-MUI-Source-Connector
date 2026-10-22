@@ -3,7 +3,7 @@
 
 Use whenever the extraction engine or its cleaning rules change (happened
 twice in week one: pypdf→PyMuPDF, then NFKC + garbage stripping + page
-markers). Reads blobs from the content-addressed store, rebuilds
+markers), and to switch METAMORPH_PDF_ENGINE (pymupdf ⇄ mineru) for the texts held. Reads blobs from the content-addressed store, rebuilds
 data/dsn/text/<sha>.txt, updates text_path/needs_ocr in the DB.
 Never touches the archived PDFs themselves.
 
@@ -13,35 +13,48 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from metamorph_pdf_text import ExtractionFailed, ExtractPdf  # noqa: E402
+
 from dsn_ingest import extract  # noqa: E402
 from dsn_ingest.store import Store  # noqa: E402
 
 
-def main() -> int:
-    store = Store()
+def reextract(store: Store, extractor: ExtractPdf | None = None) -> dict[str, int]:
+    """Each held fatwa read again. One MinerU can't read keeps its text, and the rest are still read; a MinerU out
+    of reach (ExtractionUnavailable) stops them all, so no text is half switched."""
     rows = store.db.execute(
         "SELECT source_id, sha256, raw_path FROM fatwa_docs "
         "WHERE raw_path IS NOT NULL AND last_result IN ('new','changed','unchanged')").fetchall()
-    ok = flagged = skipped = 0
+    counts = dict.fromkeys(("ok", "needs_ocr", "skipped", "unreadable"), 0)
     for r in rows:
         p = store.locate(r["raw_path"])
         if not p.exists():                      # blob renamed? re-derive from sha
             p = Path(store.blob_dir) / r["sha256"][:2] / f"{r['sha256']}.pdf"
         if not p.exists() or p.suffix != ".pdf":
-            skipped += 1
+            counts["skipped"] += 1
             continue
-        pages = extract.pdf_to_pages(p)
-        if pages is None:
+        try:
+            extracted = extract.extract_pdf(p, extractor=extractor)
+        except ExtractionFailed as e:
+            print(f"unreadable by MinerU, text kept: {r['source_id']} ({e})")
+            counts["unreadable"] += 1
+            continue
+        if extracted is None:
             store.set_text(r["source_id"], None, None)      # engine unavailable
-            skipped += 1
-        elif len(extract.page_text(pages)) < extract.MIN_TEXT_LEN:
+            counts["skipped"] += 1
+        elif len(extract.page_text(extracted.pages)) < extract.MIN_TEXT_LEN:
             store.set_text(r["source_id"], None, True)      # scanned-ish
-            flagged += 1
+            counts["needs_ocr"] += 1
         else:
-            store.set_text(r["source_id"], str(extract.write_text(r["sha256"], pages)), False)
-            ok += 1
+            store.set_text(r["source_id"], str(extract.save(r["sha256"], extracted)), False)
+            counts["ok"] += 1
     store.db.commit()
-    print(f"re-extracted: {ok} ok | {flagged} needs_ocr | {skipped} skipped")
+    return counts
+
+
+def main() -> int:
+    counts = reextract(Store())
+    print("re-extracted: " + " | ".join(f"{n} {name}" for name, n in counts.items()))
     return 0
 
 
